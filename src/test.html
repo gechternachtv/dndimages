@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>FabricJS — Drop, Snap, Drag & Resize (GIF support + Zoom)</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: system-ui, Segoe UI, Roboto, Arial
+        }
+
+        .app {
+            display: flex;
+            height: 100vh
+        }
+
+        .sidebar {
+            width: 260px;
+            padding: 12px;
+            border-right: 1px solid #eee;
+            background: #fafafa
+        }
+
+        .canvas-wrap {
+            flex: 1;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding: 12px
+        }
+
+        #c {
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05)
+        }
+
+        .drop-hint {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px dashed #ddd;
+            border-radius: 6px;
+            background: #fff;
+            text-align: center
+        }
+
+        button {
+            display: block;
+            margin: 8px 0;
+            padding: 8px
+        }
+
+        label {
+            font-size: 13px;
+            color: #333
+        }
+
+        .guides {
+            position: absolute;
+            pointer-events: none
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="sidebar">
+            <h3>FabricJS — Drop & Snap</h3>
+            <p>Drop images onto the canvas (or click "Add Image"). Images are draggable, resizable and snap to other
+                images.</p>
+            <input id="file" type="file" accept="image/*" multiple style="display:block;margin-bottom:8px" />
+            <button id="addUrl">Add image by URL</button>
+            <label><input id="toggleSnap" type="checkbox" checked /> Enable snapping</label>
+            <label>Snap threshold: <input id="snapThreshold" type="range" min="2" max="40" value="10" /></label>
+            <div class="drop-hint">Drop images anywhere over the canvas</div>
+            <hr />
+            <small>Notes:</small>
+            <ul>
+                <li>GIFs are supported — they animate while on canvas.</li>
+                <li>Hold Shift to keep aspect ratio while resizing.</li>
+                <li>Use mouse wheel to zoom in/out.</li>
+            </ul>
+        </div>
+
+        <div class="canvas-wrap">
+            <div style="position:relative">
+                <canvas id="c" width="1200" height="700"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"></script>
+    <script>
+        const canvas = new fabric.Canvas('c', {
+            selection: true,
+            preserveObjectStacking: true
+        });
+        canvas.setBackgroundColor('#fff', canvas.renderAll.bind(canvas));
+
+        const fileInput = document.getElementById('file');
+        const addUrlBtn = document.getElementById('addUrl');
+        const toggleSnap = document.getElementById('toggleSnap');
+        const snapThresholdInput = document.getElementById('snapThreshold');
+
+        let snapEnabled = toggleSnap.checked;
+        let snapThreshold = Number(snapThresholdInput.value);
+
+        toggleSnap.addEventListener('change', () => snapEnabled = toggleSnap.checked);
+        snapThresholdInput.addEventListener('input', () => snapThreshold = Number(snapThresholdInput.value));
+
+        function addImageFromURL(url, opts = {}) {
+            fabric.Image.fromURL(url, (img) => {
+                img.set({ left: opts.left ?? 100, top: opts.top ?? 100, originX: 'left', originY: 'top', cornerStyle: 'rect', transparentCorners: false });
+                img.setControlsVisibility({ mtr: true });
+                img.set({ selectable: true, hasBorders: true, hasControls: true });
+                img.scaleToWidth(opts.width ?? 200);
+                img.set('lockUniScaling', false);
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                if (/\.gif$/i.test(url) || opts.isGif) img._isGif = true;
+                canvas.requestRenderAll();
+            }, { crossOrigin: 'anonymous' });
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            Array.from(e.target.files || []).forEach(file => {
+                const url = URL.createObjectURL(file);
+                addImageFromURL(url, { isGif: file.type === 'image/gif' });
+            });
+            fileInput.value = '';
+        });
+
+        addUrlBtn.addEventListener('click', () => {
+            const url = prompt('Image URL');
+            if (url) addImageFromURL(url);
+        });
+
+        const canvasEl = document.getElementById('c');
+        ['dragenter', 'dragover'].forEach(ev => canvasEl.addEventListener(ev, e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }));
+        canvasEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dt = e.dataTransfer;
+            if (dt.files && dt.files.length) {
+                Array.from(dt.files).forEach(file => {
+                    const url = URL.createObjectURL(file);
+                    addImageFromURL(url, { left: e.offsetX, top: e.offsetY, isGif: file.type === 'image/gif' });
+                });
+            } else if (dt.items) {
+                const url = dt.getData('text/uri-list') || dt.getData('text/plain');
+                if (url) addImageFromURL(url, { left: e.offsetX, top: e.offsetY });
+            }
+        });
+
+        function snapObjectToOthers(target) {
+            if (!snapEnabled) return;
+            const objects = canvas.getObjects().filter(o => o !== target);
+            const threshold = snapThreshold;
+
+            const tLeft = target.left;
+            const tTop = target.top;
+            const tRight = target.left + target.getScaledWidth();
+            const tBottom = target.top + target.getScaledHeight();
+            const tCenterX = target.left + target.getScaledWidth() / 2;
+            const tCenterY = target.top + target.getScaledHeight() / 2;
+
+            for (const o of objects) {
+                const oLeft = o.left;
+                const oTop = o.top;
+                const oRight = o.left + o.getScaledWidth();
+                const oBottom = o.top + o.getScaledHeight();
+                const oCenterX = o.left + o.getScaledWidth() / 2;
+                const oCenterY = o.top + o.getScaledHeight() / 2;
+
+                if (Math.abs(tLeft - oRight) <= threshold) target.left = oRight;
+                if (Math.abs(tRight - oLeft) <= threshold) target.left = oLeft - target.getScaledWidth();
+                if (Math.abs(tTop - oBottom) <= threshold) target.top = oBottom;
+                if (Math.abs(tBottom - oTop) <= threshold) target.top = oTop - target.getScaledHeight();
+                if (Math.abs(tCenterX - oCenterX) <= threshold) target.left = oCenterX - target.getScaledWidth() / 2;
+                if (Math.abs(tCenterY - oCenterY) <= threshold) target.top = oCenterY - target.getScaledHeight() / 2;
+            }
+        }
+
+        canvas.on('object:moving', e => snapObjectToOthers(e.target));
+        canvas.on('object:scaling', e => {
+            const obj = e.target;
+            const w = obj.getScaledWidth();
+            const h = obj.getScaledHeight();
+            if (obj.left + w > canvas.width) obj.left = canvas.width - w;
+            if (obj.top + h > canvas.height) obj.top = canvas.height - h;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const active = canvas.getActiveObjects();
+                if (active.length) {
+                    active.forEach(o => canvas.remove(o));
+                    canvas.discardActiveObject();
+                    canvas.requestRenderAll();
+                }
+            }
+        });
+
+        function hasGifObjects() {
+            return canvas.getObjects().some(o => o._isGif);
+        }
+        function animationLoop() {
+            if (hasGifObjects()) canvas.requestRenderAll();
+            requestAnimationFrame(animationLoop);
+        }
+        requestAnimationFrame(animationLoop);
+
+        canvas.on('mouse:dblclick', e => { if (e.target) canvas.bringToFront(e.target); });
+
+        // Zoom in/out with scroll wheel
+        canvas.on('mouse:wheel', function (opt) {
+            const delta = opt.e.deltaY;
+            let zoom = canvas.getZoom();
+            zoom *= 0.999 ** delta;
+            if (zoom > 5) zoom = 5;
+            if (zoom < 0.1) zoom = 0.1;
+            canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
+        });
+
+        window._fabricCanvas = canvas;
+    </script>
+</body>
+
+</html>

@@ -19,30 +19,12 @@
             target: moveableobj,
             container: document.body,
             snappable: true,
-
             draggable: true,
             resizable: true,
             scalable: true,
-            rotatable: true,
-            warpable: true,
-            pinchable: true,
-            origin: true,
             keepRatio: true,
-            edge: false,
-            throttleDrag: 0,
-            throttleResize: 0,
-            throttleScale: 0,
-            throttleRotate: 0,
             snapThreshold: 200,
             elementGuidelines: get(guidelines),
-            elementSnapDirections: {
-                top: true,
-                left: true,
-                bottom: true,
-                right: true,
-                center: true,
-                middle: true,
-            },
         });
 
         moveableInstance
@@ -56,9 +38,7 @@
             });
 
         guidelines.subscribe((value) => {
-            console.log("Count changed:", value);
             moveableInstance.elementGuidelines = value;
-            // Do whatever you want whenever count changes here
         });
     });
 
@@ -68,6 +48,10 @@
             moveableInstance = null;
         }
     });
+
+    const handleclick = (e) => {
+        e.stopPropagation();
+    };
 </script>
 
 <img
@@ -76,6 +60,7 @@
     class="moveable"
     bind:this={moveableobj}
     style="position:absolute;"
+    on:click={handleclick}
 />
 
 <style>

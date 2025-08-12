@@ -1,176 +1,132 @@
 <script>
   // @ts-nocheck
-  import { mount } from "svelte";
-  import Rimg from "../Rimg.svelte";
+  import { Canvas, Image as FabricImage } from "fabric";
+  import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { convertFileSrc } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
-
-  let dropzone;
-
-  function isValidUrl(str) {
-    try {
-      new URL(str);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   onMount(() => {
-    dropzone.addEventListener("drop", (e) => {
-      console.log("drop event", e);
+    const canvas = new Canvas("can", {
+      selection: true,
+      preserveObjectStacking: true,
     });
 
+    function resizeCanvas() {
+      canvas.setWidth(window.innerWidth);
+      canvas.setHeight(window.innerHeight);
+      canvas.renderAll();
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
     listen("tauri://drag-drop", (e) => {
       try {
-        console.log("drag-drop event", e);
-        if (e.payload?.paths?.length) {
-          if (isValidUrl(e.payload.paths[0])) {
-            mount(Rimg, {
-              target: dropzone,
-              props: {
-                src: e.payload.paths[0],
-              },
-            });
-          } else {
-            mount(Rimg, {
-              target: dropzone,
-              props: {
-                src: convertFileSrc(e.payload.paths[0]),
-              },
-            });
+        let currentX = 100;
 
-            // img.src = convertFileSrc(e.payload.paths[0]);
-          }
-        }
+        const tryGrid = e.payload.paths?.length > 3;
+        console.log("drag-drop event", e);
+        e.payload.paths.forEach((droppedEl, i) => {
+          const url = convertFileSrc(droppedEl);
+          FabricImage.fromURL(url)
+            .then((img) => {
+              canvas.add(img);
+              img.lockRotation = true;
+              img.setControlsVisibility({ mtr: false });
+              img.set({
+                left: currentX,
+                top: 100,
+                originX: "left",
+                originY: "top",
+              });
+
+              const maxWidth = canvas.width;
+              if (img.width > maxWidth) {
+                const scale = maxWidth / img.width;
+                img.scaleX = scale;
+                img.scaleY = scale;
+              }
+
+              img.setCoords();
+              canvas.renderAll();
+
+              currentX += img.getScaledWidth();
+            })
+
+            .catch((err) => console.error(err));
+        });
       } catch (error) {
         console.warn(error);
       }
     });
+
+    canvas.on("mouse:wheel", function (opt) {
+      const delta = opt.e.deltaY;
+      let zoom = canvas.getZoom();
+      zoom *= 0.999 ** delta;
+      zoom = Math.min(Math.max(zoom, 0.1), 10);
+
+      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+
+      opt.e.preventDefault();
+      opt.e.stopPropagation();
+    });
+    let isPanning = false;
+    let lastPosX = 0;
+    let lastPosY = 0;
+    window.addEventListener("mousedown", (e) => {
+      if (e.button === 1) {
+        console.log("middle");
+        isPanning = true;
+        lastPosX = e.clientX;
+        lastPosY = e.clientY;
+        canvas.selection = false;
+      }
+    });
+    window.addEventListener("mouseup", (e) => {
+      if (e.button === 1) {
+        console.log("middle");
+        isPanning = false;
+        canvas.selection = true;
+      }
+    });
+
+    canvas.on("mouse:move", function (opt) {
+      if (isPanning) {
+        const e = opt.e;
+        const deltaX = e.clientX - lastPosX;
+        const deltaY = e.clientY - lastPosY;
+        lastPosX = e.clientX;
+        lastPosY = e.clientY;
+        canvas.relativePan({ x: deltaX, y: deltaY });
+      }
+    });
+    //onmount
   });
 </script>
 
-<main bind:this={dropzone} class="container">
-  <h1>drop here</h1>
+<main class="container">
+  <div class="title-thing">dnd image collection</div>
+  <canvas id="can" width="1200" height="800"></canvas>
 </main>
 
 <style>
-  :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 400;
-
-    color: #0f0f0f;
-    background-color: #f6f6f6;
-
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-text-size-adjust: 100%;
-  }
-
-  main {
-    width: 100%;
-    min-height: 500px;
-  }
-
   .container {
-    margin: 0;
-    padding-top: 10vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
+    background: transparent;
+  }
+  .title-thing {
+    font-family: "MingLiU";
+    background: rgb(65, 12, 12);
+    color: white;
+    width: 100vw;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    font-size: 11px;
+    letter-spacing: 3px;
   }
 
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: 0.75s;
-  }
-
-  .logo.tauri:hover {
-    filter: drop-shadow(0 0 2em #24c8db);
-  }
-
-  .row {
-    display: flex;
-    justify-content: center;
-  }
-
-  a {
-    font-weight: 500;
-    color: #646cff;
-    text-decoration: inherit;
-  }
-
-  a:hover {
-    color: #535bf2;
-  }
-
-  h1 {
-    text-align: center;
-  }
-
-  input,
-  button {
-    border-radius: 8px;
-    border: 1px solid transparent;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    font-weight: 500;
-    font-family: inherit;
-    color: #0f0f0f;
-    background-color: #ffffff;
-    transition: border-color 0.25s;
-    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  }
-
-  button {
-    cursor: pointer;
-  }
-
-  button:hover {
-    border-color: #396cd8;
-  }
-  button:active {
-    border-color: #396cd8;
-    background-color: #e8e8e8;
-  }
-
-  input,
-  button {
-    outline: none;
-  }
-
-  #greet-input {
-    margin-right: 5px;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color: #f6f6f6;
-      background-color: #013d33;
-    }
-
-    a:hover {
-      color: #24c8db;
-    }
-
-    input,
-    button {
-      color: #ffffff;
-      background-color: #0f0f0f98;
-    }
-    button:active {
-      background-color: #0f0f0f69;
-    }
-  }
-  main {
-    background: rgba(26, 79, 107, 0.377);
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
   }
 </style>
