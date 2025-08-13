@@ -416,7 +416,7 @@
     "@tauri-apps/cli-win32-ia32-msvc" "2.7.1"
     "@tauri-apps/cli-win32-x64-msvc" "2.7.1"
 
-"@tauri-apps/plugin-dialog@^2.3.2":
+"@tauri-apps/plugin-dialog@~2":
   version "2.3.2"
   resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-dialog/-/plugin-dialog-2.3.2.tgz#968365b8395d28aa87d65db418a9d9335b34e258"
   integrity sha512-cNLo9YeQSC0MF4IgXnotHsqEgJk72MBZLXmQPrLA95qTaaWiiaFQ38hIMdZ6YbGUNkr3oni3EhU+AD5jLHcdUA==

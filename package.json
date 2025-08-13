@@ -14,7 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-dialog": "^2.3.2",
+    "@tauri-apps/plugin-dialog": "~2",
     "@tauri-apps/plugin-opener": "^2",
     "fabric": "^6.7.1"
   },
